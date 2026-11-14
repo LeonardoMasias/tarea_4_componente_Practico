@@ -1,0 +1,211 @@
+.MODEL SMALL
+.STACK 100h
+
+.DATA
+    msg_titulo  db 13, 10, '=== OPERADOR DE MASCARAS LOGICAS (8 BITS) ===', 13, 10, '$'
+    msg_num1    db 13, 10, 'Ingrese primer byte en hexadecimal (ej. A5): $'
+    msg_num2    db 13, 10, 'Ingrese mascara/segundo byte en hex (ej. 0F): $'
+    msg_op      db 13, 10, 'Seleccione operacion [1=AND, 2=OR, 3=XOR]: $'
+    msg_res     db 13, 10, 13, 10, 'Resultado en binario (8 bits): $'
+    msg_err     db 13, 10, '[Error] Entrada invalida. Intente de nuevo.', 13, 10, '$'
+
+    num1        db ?
+    num2        db ?
+
+.CODE
+MAIN PROC
+    ; Inicializar segmento de datos
+    mov ax, @data
+    mov ds, ax
+
+    ; Mostrar titulo
+    lea dx, msg_titulo
+    mov ah, 09h
+    int 21h
+
+PEDIR_NUM1:
+    lea dx, msg_num1
+    mov ah, 09h
+    int 21h
+    call LEER_BYTE_HEX
+    jc ERROR_NUM1
+    mov num1, al
+    jmp PEDIR_NUM2
+
+ERROR_NUM1:
+    lea dx, msg_err
+    mov ah, 09h
+    int 21h
+    jmp PEDIR_NUM1
+
+PEDIR_NUM2:
+    lea dx, msg_num2
+    mov ah, 09h
+    int 21h
+    call LEER_BYTE_HEX
+    jc ERROR_NUM2
+    mov num2, al
+    jmp PEDIR_OP
+
+ERROR_NUM2:
+    lea dx, msg_err
+    mov ah, 09h
+    int 21h
+    jmp PEDIR_NUM2
+
+PEDIR_OP:
+    lea dx, msg_op
+    mov ah, 09h
+    int 21h
+
+    mov ah, 01h             ; Leer opcion del usuario
+    int 21h
+
+    cmp al, '1'
+    je OP_AND
+    cmp al, '2'
+    je OP_OR
+    cmp al, '3'
+    je OP_XOR
+
+    lea dx, msg_err
+    mov ah, 09h
+    int 21h
+    jmp PEDIR_OP
+
+OP_AND:
+    mov al, num1
+    mov bl, num2
+    and al, bl              ; Operacion logica nativa AND
+    jmp MOSTRAR_BINARIO
+
+OP_OR:
+    mov al, num1
+    mov bl, num2
+    or al, bl               ; Operacion logica nativa OR
+    jmp MOSTRAR_BINARIO
+
+OP_XOR:
+    mov al, num1
+    mov bl, num2
+    xor al, bl              ; Operacion logica nativa XOR
+
+MOSTRAR_BINARIO:
+    mov bl, al              ; Respaldar resultado en BL antes de imprimir mensaje
+    lea dx, msg_res
+    mov ah, 09h
+    int 21h
+
+    mov al, bl
+    call IMPRIMIR_BINARIO_8BITS
+
+    ; Imprimir sufijo 'b' de binario
+    mov dl, 'b'
+    mov ah, 02h
+    int 21h
+
+    ; Retornar control al sistema operativo (INT 21h, funcion 4Ch)
+    mov ah, 4Ch
+    int 21h
+MAIN ENDP
+
+; =========================================================================
+; PROCEDIMIENTO: IMPRIMIR_BINARIO_8BITS
+; Desplaza AL 8 veces a la izquierda (SHL) y lee el bit expulsado en CF.
+; =========================================================================
+IMPRIMIR_BINARIO_8BITS PROC
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov bl, al              ; Copiar el byte a imprimir en BL
+    mov cx, 8               ; Contador de 8 bits
+
+CICLO_BITS:
+    shl bl, 1               ; Desplazar MSB (bit mas significativo) hacia CF
+    jc BIT_UNO              ; Si CF = 1, imprimir '1'
+    mov dl, '0'             ; Si CF = 0, imprimir '0'
+    jmp IMPRIMIR_CHAR
+
+BIT_UNO:
+    mov dl, '1'
+
+IMPRIMIR_CHAR:
+    mov ah, 02h
+    int 21h
+    loop CICLO_BITS         ; Decrementa CX y repite hasta completar los 8 bits
+
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+IMPRIMIR_BINARIO_8BITS ENDP
+
+; =========================================================================
+; PROCEDIMIENTOS AUXILIARES DE LECTURA HEXADECIMAL (00h - FFh)
+; =========================================================================
+LEER_BYTE_HEX PROC
+    push bx
+    push cx
+
+    mov ah, 01h
+    int 21h
+    call ASCII_A_HEX
+    jc FIN_LEER_ERR
+    mov cl, 4
+    shl al, cl
+    mov bl, al
+
+    mov ah, 01h
+    int 21h
+    call ASCII_A_HEX
+    jc FIN_LEER_ERR
+    or bl, al
+    mov al, bl
+    clc
+    jmp FIN_LEER_OK
+
+FIN_LEER_ERR:
+    stc
+
+FIN_LEER_OK:
+    pop cx
+    pop bx
+    ret
+LEER_BYTE_HEX ENDP
+
+ASCII_A_HEX PROC
+    cmp al, '0'
+    jb NO_ES_HEX
+    cmp al, '9'
+    jbe ES_DIGITO
+    cmp al, 'A'
+    jb NO_ES_HEX
+    cmp al, 'F'
+    jbe ES_MAYUSCULA
+    cmp al, 'a'
+    jb NO_ES_HEX
+    cmp al, 'f'
+    jbe ES_MINUSCULA
+NO_ES_HEX:
+    stc
+    ret
+ES_DIGITO:
+    sub al, '0'
+    clc
+    ret
+ES_MAYUSCULA:
+    sub al, 'A'
+    add al, 0Ah
+    clc
+    ret
+ES_MINUSCULA:
+    sub al, 'a'
+    add al, 0Ah
+    clc
+    ret
+ASCII_A_HEX ENDP
+
+END MAIN
