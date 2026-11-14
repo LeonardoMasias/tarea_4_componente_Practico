@@ -1,0 +1,97 @@
+.MODEL SMALL
+.STACK 100h
+
+.DATA
+    msg_titulo  db 13, 10, '=== CONTADOR PROGRESIVO AUTOMATICO HEXADECIMAL (0h - Fh) ===', 13, 10, 13, 10, '$'
+    msg_fin     db 13, 10, 13, 10, 'Conteo hexadecimal finalizado correctamente.', 13, 10, '$'
+    contador    db 00h      ; Variable inicializada en 0h con sufijo hexadecimal
+
+.CODE
+MAIN PROC
+    ; Inicializar segmento de datos
+    mov ax, @data
+    mov ds, ax
+
+    ; Mostrar encabezado
+    lea dx, msg_titulo
+    mov ah, 09h
+    int 21h
+
+    mov cx, 10h             ; 10h = 16 iteraciones (0h hasta Fh) para instruccion LOOP
+    mov bl, 00h             ; BL llevara el valor actual del contador (0h a Fh)
+
+CICLO_CONTEO:
+    push cx                 ; Respaldar CX del ciclo principal en la pila
+
+    ; Convertir el valor actual en BL (0h..Fh) a su caracter ASCII
+    mov al, bl
+    cmp al, 0Ah             ; Comparar con 10 decimal (0Ah)
+    jb ES_NUMERO            ; Si es menor que 0Ah (0..9), saltar a ES_NUMERO
+    add al, 37h             ; Si es 0Ah..0Fh, sumar 37h para obtener 'A'..'F'
+    jmp IMPRIMIR_DIGITO
+
+ES_NUMERO:
+    add al, 30h             ; Sumar 30h para obtener '0'..'9'
+
+IMPRIMIR_DIGITO:
+    mov dl, al
+    mov ah, 02h             ; Imprimir digito hexadecimal actual
+    int 21h
+
+    ; Imprimir sufijo 'h'
+    mov dl, 'h'
+    mov ah, 02h
+    int 21h
+
+    ; Evaluar si ya llegamos al ultimo elemento (Fh) usando CMP y JNZ
+    cmp bl, 0Fh
+    jz SIN_SEPARADOR        ; Si BL == 0Fh, no imprimir coma final
+
+    ; Imprimir separador ", " entre valores
+    mov dl, ','
+    mov ah, 02h
+    int 21h
+    mov dl, ' '
+    mov ah, 02h
+    int 21h
+
+SIN_SEPARADOR:
+    call RETARDO            ; Pausa breve para visualizar el conteo progresivo
+    inc bl                  ; Incrementar contador hexadecimal en 1
+    mov contador, bl        ; Actualizar variable en memoria
+
+    pop cx                  ; Restaurar contador de iteraciones CX
+    loop CICLO_CONTEO       ; Decrementa CX; si CX != 0 (JNZ implicito), repite
+
+    ; Mostrar mensaje de finalizacion
+    lea dx, msg_fin
+    mov ah, 09h
+    int 21h
+
+    ; Devolver control al sistema operativo (INT 21h, funcion 4Ch)
+    mov ah, 4Ch
+    int 21h
+MAIN ENDP
+
+; =========================================================================
+; PROCEDIMIENTO: RETARDO
+; Ciclo anidado usando DEC y JNZ para generar una pausa visible en consola.
+; =========================================================================
+RETARDO PROC
+    push cx
+    push dx
+
+    mov cx, 0004h           ; Ciclo externo
+RETARDO_EXT:
+    mov dx, 0FFFFh          ; Ciclo interno
+RETARDO_INT:
+    dec dx                  ; Decrementar DX
+    jnz RETARDO_INT         ; Saltar mientras DX no sea cero (JNZ)
+    loop RETARDO_EXT        ; Repetir ciclo externo con LOOP
+
+    pop dx
+    pop cx
+    ret
+RETARDO ENDP
+
+END MAIN
